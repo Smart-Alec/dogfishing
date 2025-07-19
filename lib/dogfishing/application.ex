@@ -8,7 +8,7 @@ defmodule Dogfishing.Application do
       consumer: Dogfishing.Consumer,
       intents: :all,
       wrapped_token: fn ->
-        "MTM5NjAyMDQ2MDcwOTIxNjM2Nw.GrO0xg.65VCn9V7Ma7_P574aez3kchiYI6P4l9BOF79ZY"
+        System.get_env("BOT_TOKEN")
       end
     }
 
