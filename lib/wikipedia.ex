@@ -2,7 +2,6 @@ defmodule Wikipedia do
   @endpoint "https://en.wikipedia.org/w/api.php?format=json&"
 
   def request(uri) do
-    IO.puts(@endpoint <> uri)
     Req.get!(@endpoint <> uri).body
   end
 
@@ -37,7 +36,7 @@ defmodule Wikipedia do
       %{"query" => %{"pages" => pages}} ->
         Map.to_list(pages)
         |> hd
-        |> elem 1
+        |> elem(1)
       _ -> :error
     end
 
@@ -55,5 +54,22 @@ defmodule Wikipedia do
         |> String.trim("Category:")
       end)
     }
+  end
+
+  def random_article do
+    random_article([], 10000)
+  end
+
+  def random_article({:ok, random_id_cache, threshhold, _page}) do
+    random_article(random_id_cache, threshhold)
+  end
+
+  def random_article(random_id_cache, threshhold) do
+    {:ok, cache, page} = random_id(random_id_cache) |> metadata
+    if page.views > threshhold do
+      {:ok, cache, threshhold, page}
+    else
+      random_article(cache, threshhold)
+    end
   end
 end
