@@ -22,6 +22,9 @@ defmodule Dogfishing.MixProject do
 
   # Run "mix help deps" to learn about dependencies.
   defp deps do
-    [{:nostrum, github: "Kraigie/nostrum"}]
+    [
+      {:nostrum, github: "Kraigie/nostrum"},
+      {:req, "~> 0.5.0"}
+    ]
   end
 end
