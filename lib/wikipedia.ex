@@ -66,19 +66,20 @@ defmodule Wikipedia do
       |> hd
       |> elem(1)
       |> then(fn threshhold ->
-        random_article(fn page -> page.views > threshhold end, nil)
+        random_article(fn page -> page.views > threshhold end, 0, fn _ -> nil end)
       end)
     else
-      random_article(fn page -> page.views > 10000 end, nil)
+      random_article(fn page -> page.views > 100 end, 0, fn _ -> nil end)
     end
   end
 
-  def random_article(filter, callback) do
+  def random_article(filter, accumulator, callback) do
     page = metadata(random_id())
+    callback.(accumulator)
     if filter.(page) do
       page
     else
-      random_article(filter, callback)
+      random_article(filter, accumulator + 1, callback)
     end
   end
 end

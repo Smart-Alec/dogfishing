@@ -3,6 +3,8 @@ defmodule Dogfishing.Application do
 
   @impl true
   def start(_type, _args) do
+    :ets.new(:dogfishing, [:named_table, :public])
+
     bot_options = %{
       name: Dogfishing,
       consumer: Dogfishing.Consumer,
