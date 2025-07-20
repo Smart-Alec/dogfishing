@@ -53,7 +53,11 @@ defmodule Dogfishing.Consumer do
     #automatically skip them if the queue grows too long
     api_sender = spawn(&Dogfishing.Consumer.api_handler/0)
 
-    page = Wikipedia.random_article(fn page -> page.views > 10000 end, 0, fn accumulator ->
+    page = Wikipedia.random_article(fn page ->
+      #add filters here
+      page.views > 10000
+      && 1
+    end, 0, fn accumulator ->
       data = %{
         flags: 32768,
         components: [
@@ -90,20 +94,12 @@ defmodule Dogfishing.Consumer do
     }
 
     set_current_page(page)
-    page.categories
-    |> Enum.reduce("", fn category, accumulator ->
-      "`#{category}` #{accumulator}"
-    end)
-    |> then(fn categories_text ->
-      send(api_sender, {interaction, response})
-      Process.exit(api_sender, :normal)
-    end)
+    send(api_sender, {interaction, response})
+    Process.exit(api_sender, :normal)
   end
 
-  def handle_event({:MESSAGE_CREATE, message, _ws_state}) do
+  def generate_final_screen(message) do
     if is_map(current_page()) && !message.author.bot do
-      dist = message.content
-      |> String.jaro_distance(current_page().title)
       page = current_page()
       set_current_page(nil)
       response = %{
@@ -111,7 +107,8 @@ defmodule Dogfishing.Consumer do
         components: [
           %{
             type: 10,
-            content: "The article was `#{page.title}`!"
+            content: "The article was `#{page.title}`!",
+            label: "The article was `#{page.title}`!"
           },
           %{
             type: 1,
@@ -121,24 +118,6 @@ defmodule Dogfishing.Consumer do
                 label: "#{page.title} on Wikipedia",
                 style: 5,
                 url: URI.encode("https://en.wikipedia.org/wiki/" <> page.title)
-              },
-              %{
-                type: 2,
-                label: "Did you get it right?",
-                style: 3,
-                custom_id: "right"
-              },
-              %{
-                type: 2,
-                label: "Or wrong?",
-                style: 4,
-                custom_id: "wrong"
-              },
-              %{
-                type: 2,
-                label: "Just want to play another round?",
-                style: 1,
-                custom_id: "next"
               }
             ]
           }
@@ -146,8 +125,44 @@ defmodule Dogfishing.Consumer do
       }
 
 
-      Message.create(message.channel_id, response)#"The word was `#{page.title}`. Jaro distance: #{dist}")
+      Message.create(message.channel_id, response)
+      Message.create(message.channel_id, score_buttons())
     end
+  end
+
+  def score_buttons do
+    %{
+      flags: 32768,
+      components: [
+        %{
+          type: 1,
+          components: [
+            %{
+              type: 2,
+              label: "👍 #{Dogfishing.Scorekeeper.right()}",
+              style: 3,
+              custom_id: "right"
+            },
+            %{
+              type: 2,
+              label: "👎 #{Dogfishing.Scorekeeper.wrong()}",
+              style: 4,
+              custom_id: "wrong"
+            },
+            %{
+              type: 2,
+              label: "➡️",
+              style: 1,
+              custom_id: "next"
+            }
+          ]
+        }
+      ]
+    }
+  end
+
+  def handle_event({:MESSAGE_CREATE, message, _ws_state}) do
+    generate_final_screen(message)
   end
 
   def handle_event({:READY, _msg, _ws_state}) do
@@ -162,8 +177,20 @@ defmodule Dogfishing.Consumer do
     Nostrum.Api.ApplicationCommand.create_guild_command("1334804544596738058", command)
   end
 
-  def handle_next_round(interaction) do
+  def handle_event({:INTERACTION_CREATE, %Interaction{data: %{custom_id: "right"}} = interaction, _ws_state}) do
+    Dogfishing.Scorekeeper.increment_right()
+    #acknowledge request
+    Api.Interaction.create_response(interaction, %{type: 6, data: %{flags: 32768}})
+    #then update button
+    Api.Interaction.edit_response(interaction, score_buttons())
+  end
 
+  def handle_event({:INTERACTION_CREATE, %Interaction{data: %{custom_id: "wrong"}} = interaction, _ws_state}) do
+    Dogfishing.Scorekeeper.increment_wrong()
+    #acknowledge request
+    Api.Interaction.create_response(interaction, %{type: 6, data: %{flags: 32768}})
+    #then update button
+    Api.Interaction.edit_response(interaction, score_buttons())
   end
 
   #handle new games via button

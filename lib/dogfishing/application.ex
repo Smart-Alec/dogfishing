@@ -15,6 +15,7 @@ defmodule Dogfishing.Application do
     }
 
     children = [
+      Dogfishing.Scorekeeper,
       {Nostrum.Bot, bot_options}
     ]
 
