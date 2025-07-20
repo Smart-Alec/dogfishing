@@ -1,24 +1,36 @@
 defmodule Wikipedia do
   @endpoint "https://en.wikipedia.org/w/api.php?format=json&"
+  @cache :wikipedia_cache
 
   def request(uri) do
     Req.get!(@endpoint <> uri).body
   end
 
-  def random_id(random_id_cache) do
-    if Enum.empty?(random_id_cache) do
-      case request("action=query&generator=random&grnnamespace=0&grnlimit=500") do
-        %{"query" => %{"pages" => pages}} -> pages
-        _ -> :error
-      end
-      |> Enum.map(fn page ->
-        {id, _} = page
-        id
-      end)
-      |> random_id
+  def random_id do
+    if :ets.info(@cache) == :undefined do
+      :ets.new(@cache, [:named_table])
+      random_id()
     else
-      [random_id | cache] = random_id_cache
-      {:ok, cache, random_id}
+      random_ids = :ets.lookup(@cache, :random_ids)
+      if Enum.empty?(random_ids) || random_ids |> hd |> elem(1) |> Enum.empty? do
+        #generate a new set of random ids
+        random_ids = case request("action=query&generator=random&grnnamespace=0&grnlimit=500") do
+          %{"query" => %{"pages" => pages}} -> pages
+          _ -> :error
+        end
+        |> Enum.map(fn page ->
+          {id, _} = page
+          id
+        end)
+
+        :ets.insert(@cache, {:random_ids, random_ids})
+        random_id()
+      else
+        #pop a new id
+        [random_id | random_ids] = random_ids |> hd |> elem(1)
+        :ets.insert(@cache, {:random_ids, random_ids})
+        random_id
+      end
     end
   end
 
