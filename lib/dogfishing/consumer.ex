@@ -33,16 +33,34 @@ defmodule Dogfishing.Consumer do
         components: [
           %{
             type: 10,
-            content: "test"
+            content: "The article was `#{page.title}`!"
           },
           %{
             type: 1,
             components: [
               %{
                 type: 2,
-                label: "Click me!",
+                label: "#{page.title} on Wikipedia",
+                style: 5,
+                url: URI.encode("https://en.wikipedia.org/wiki/" <> page.title)
+              },
+              %{
+                type: 2,
+                label: "Did you get it right?",
+                style: 3,
+                custom_id: "right"
+              },
+              %{
+                type: 2,
+                label: "Or wrong?",
+                style: 4,
+                custom_id: "wrong"
+              },
+              %{
+                type: 2,
+                label: "Just want to play another round?",
                 style: 1,
-                custom_id: "clicked_me"
+                custom_id: "next"
               }
             ]
           }
@@ -60,12 +78,47 @@ defmodule Dogfishing.Consumer do
       description: "start the next dogfish"
     }
 
+    #To overwrite commmands
+    #Nostrum.Api.ApplicationCommand.bulk_overwrite_guild_commands "1334804544596738058", []
+
     Nostrum.Api.ApplicationCommand.create_guild_command("1334804544596738058", command)
   end
 
-  def handle_event({:INTERACTION_CREATE, %Interaction{data: %{name: "next"}} = interaction, _ws_state}) do
+  def handle_next_round(interaction) do
+
+  end
+
+  def handle_event({:INTERACTION_CREATE, %Interaction{data: %{custom_id: "next"}} = interaction, _ws_state}) do #button press
+    Api.Interaction.create_response(interaction, %{type: 5})
+    :timer.sleep(2000)
+    Api.Interaction.edit_response(interaction, %{content: "nothing here..."})
+    :timer.sleep(2000)
+    Api.Interaction.edit_response(interaction, %{content: "something here!"})
+  end
+
+  def api_handler() do
+      receive do
+          {interaction, data} ->
+            {_, messages} = Process.info(self(), :message_queue_len)
+            if messages > 0 do #we're already backed up! just skip it
+              api_handler()
+            else
+              Api.Interaction.edit_response(interaction, data)
+              api_handler()
+            end
+          _ -> nil
+      end
+  end
+
+  def handle_event({:INTERACTION_CREATE, %Interaction{data: %{name: "next"}} = interaction, _ws_state}) do #command
     Api.Interaction.create_response(interaction, %{type: 4, data: %{
-      content: "Searching for a good article..."
+      flags: 32768,
+      components: [
+        %{
+          type: 10,
+          content: "Searching 0 articles..."
+        }
+      ]
     }})
     #Api.Interaction.create_response(interaction, %{type: 4, data: %{
     #  content: "test3"
@@ -80,10 +133,20 @@ defmodule Dogfishing.Consumer do
     #  ]
     #}})
 
+    api_sender = spawn(&Dogfishing.Consumer.api_handler/0)
+
     page = Wikipedia.random_article(fn page -> page.views > 10000 end, 0, fn accumulator ->
-      if rem(accumulator, 10) == 0 do
-        Api.Message.create(interaction.channel_id, "Searched across #{accumulator} articles.")
-      end
+      data = %{
+        flags: 32768,
+        components: [
+          %{
+            type: 10,
+            content: "Searching #{accumulator} articles..."
+          }
+        ]
+      }
+
+      send(api_sender, {interaction, data})
     end)
 
     buttons = page.categories
@@ -113,8 +176,13 @@ defmodule Dogfishing.Consumer do
       "`#{category}` #{accumulator}"
     end)
     |> then(fn categories_text ->
-      Api.Message.create(interaction.channel_id, response)
+      send(api_sender, {interaction, response})
+      Process.exit(api_sender, :normal)
     end)
+  end
+
+  def handle_event({:INTERACTION_CREATE, %Interaction{} = interaction, _ws_state}) do
+    IO.inspect(interaction)
   end
   # Ignore any other events
   def handle_event(_), do: :ok

@@ -1,3 +1,5 @@
+#TODO Look into Agents instead of ETS?
+
 defmodule Wikipedia do
   @endpoint "https://en.wikipedia.org/w/api.php?format=json&"
   @cache :wikipedia_cache
