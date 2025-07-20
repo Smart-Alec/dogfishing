@@ -25,13 +25,46 @@ defmodule Dogfishing.Consumer do
   end
 
   def handle_event({:INTERACTION_CREATE, %Interaction{data: %{name: "next"}} = interaction, _ws_state}) do
-  response = %{
-    type: 4,  # ChannelMessageWithSource
-    data: %{
-      content: "testing"
+    Api.Interaction.create_response(interaction, %{type: 4, data: %{
+      content: "test3"
+    }})
+    #%{type: 4, data: %{
+    #  flags: 32768,
+    #  components: [
+    #    %{
+    #      type: 10,
+    #      content: "test"
+    #    }
+    #  ]
+    #}})
+    {:ok, _, _, page} = Wikipedia.random_article
+    buttons = page.categories
+    |> Enum.map(fn category ->
+      %{
+        type: 2,
+        label: category,
+        style: 5,
+        url: URI.encode("https://en.wikipedia.org/wiki/Category:" <> category)
+      }
+    end)
+    |> Enum.chunk_every(5)
+    |> Enum.map(fn row ->
+      %{
+        type: 1,
+        components: row
+      }
+    end)
+    response = %{
+      type: 4,
+      data: %{
+        flags: 32768,
+        components: buttons
+      }
     }
-  }
-  Api.Interaction.create_response(interaction, response)
+    #:timer.sleep(1000)
+    Api.Interaction.edit_response(interaction, %{type: 4, data: %{
+      content: "test2"
+    }})
   end
   # Ignore any other events
   def handle_event(_), do: :ok
