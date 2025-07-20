@@ -152,8 +152,8 @@ defmodule Dogfishing.Consumer do
 
   def handle_event({:READY, _msg, _ws_state}) do
     command = %{
-      name: "next",
-      description: "start the next dogfish"
+      name: "start",
+      description: "Start playing Dogfishing!"
     }
 
     #To overwrite commmands
@@ -166,84 +166,10 @@ defmodule Dogfishing.Consumer do
 
   end
 
+  #handle new games via button
   def handle_event({:INTERACTION_CREATE, %Interaction{data: %{custom_id: "next"}} = interaction, _ws_state}), do: start_new_game(interaction)
-
-  def handle_event({:INTERACTION_CREATE, %Interaction{data: %{name: "next"}} = interaction, _ws_state}), do: start_new_game(interaction)
-
-  def handle_event({:INTERACTION_CREATE, %Interaction{data: %{name: "next"}} = interaction, 1}) do #command
-    Api.Interaction.create_response(interaction, %{type: 4, data: %{
-      flags: 32768,
-      components: [
-        %{
-          type: 10,
-          content: "Searching 0 articles..."
-        }
-      ]
-    }})
-    #Api.Interaction.create_response(interaction, %{type: 4, data: %{
-    #  content: "test3"
-    #}})
-    #%{type: 4, data: %{
-    #  flags: 32768,
-    #  components: [
-    #    %{
-    #      type: 10,
-    #      content: "test"
-    #    }
-    #  ]
-    #}})
-
-    api_sender = spawn(&Dogfishing.Consumer.api_handler/0)
-
-    page = Wikipedia.random_article(fn page -> page.views > 10000 end, 0, fn accumulator ->
-      data = %{
-        flags: 32768,
-        components: [
-          %{
-            type: 10,
-            content: "Searching #{accumulator} articles..."
-          }
-        ]
-      }
-
-      send(api_sender, {interaction, data})
-    end)
-
-    buttons = page.categories
-    |> Enum.map(fn category ->
-     %{
-       type: 2,
-       label: category,
-       style: 5,
-       url: URI.encode("https://en.wikipedia.org/wiki/Category:" <> category)
-     }
-    end)
-    |> Enum.chunk_every(5)
-    |> Enum.map(fn row ->
-     %{
-       type: 1,
-       components: row
-     }
-    end)
-    response = %{
-     flags: 32768,
-     components: buttons
-    }
-
-    set_current_page(page)
-    page.categories
-    |> Enum.reduce("", fn category, accumulator ->
-      "`#{category}` #{accumulator}"
-    end)
-    |> then(fn categories_text ->
-      send(api_sender, {interaction, response})
-      Process.exit(api_sender, :normal)
-    end)
-  end
-
-  def handle_event({:INTERACTION_CREATE, %Interaction{} = interaction, _ws_state}) do
-    IO.inspect(interaction)
-  end
-  # Ignore any other events
+  #or command
+  def handle_event({:INTERACTION_CREATE, %Interaction{data: %{name: "start"}} = interaction, _ws_state}), do: start_new_game(interaction)
+  #ignore any other events
   def handle_event(_), do: :ok
 end
