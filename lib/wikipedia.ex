@@ -65,18 +65,20 @@ defmodule Wikipedia do
       :ets.lookup(@cache, :threshhold)
       |> hd
       |> elem(1)
-      |> random_article
+      |> then(fn threshhold ->
+        random_article(fn page -> page.views > threshhold end, nil)
+      end)
     else
-      random_article(10000)
+      random_article(fn page -> page.views > 10000 end, nil)
     end
   end
 
-  def random_article(threshhold) do
+  def random_article(filter, callback) do
     page = metadata(random_id())
-    if page.views > threshhold do
+    if filter.(page) do
       page
     else
-      random_article(threshhold)
+      random_article(filter, callback)
     end
   end
 end
