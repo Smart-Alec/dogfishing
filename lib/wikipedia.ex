@@ -60,7 +60,15 @@ defmodule Wikipedia do
   end
 
   def random_article do
-    random_article(10000)
+    #use article view threshhold based on ETS :threshhold variable
+    unless :ets.info(@cache) == :undefined do
+      :ets.lookup(@cache, :threshhold)
+      |> hd
+      |> elem(1)
+      |> random_article
+    else
+      random_article(10000)
+    end
   end
 
   def random_article(threshhold) do
